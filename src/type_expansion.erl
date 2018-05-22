@@ -120,8 +120,8 @@ expand(Module, Type, Arity, Cache) ->
     case preload_types(Module, Type, Arity, Cache) of
         ok ->
             t_from_mfa(Module, Type, Arity, Cache);
-        error ->
-            error
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 preload_types_with_context(Module, Type, Arity, #cache{error_table = ErrorTable} = Cache, ContextModule, Line) ->
@@ -212,7 +212,7 @@ get_types_visited(Module, ModuleTab) ->
         [{Module, TypesVisited}] ->
             TypesVisited;
         [] ->
-            orsets:new()
+            ordsets:new()
     end.
 
 rec_table_find_form(Module, Type, Arity, RecTable) ->
