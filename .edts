@@ -1,0 +1,4 @@
+:name "type_expansion"
+:node-name "type_expansion"
+:lib-dirs '("_build/default/lib")
+:app-include-dirs '("include")
