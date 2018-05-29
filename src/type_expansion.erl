@@ -9,7 +9,8 @@
 -module(type_expansion).
 
 %% API
--export([core/1, exported_types/1, cache/4,  expand/3, expand/4, dialyzer_utils/0]).
+-export([core/1, exported_types/1, expand/3, expand/4, dialyzer_utils/0]).
+-export([cache/0, finalize_cache/1, cache_errors/1]).
 
 -record(cache, {rec_table, module_table, type_table, error_table}).
 
@@ -35,27 +36,23 @@ exported_types(Core) ->
     M = cerl:atom_val(cerl:module_name(Core)),
     sets:from_list([{M, F, A} || {F, A} <- ExpTypes2]).
 
-cache(RecTable, ModuleTable, TypeTable, ErrorTable) ->
-    #cache{rec_table = RecTable, module_table = ModuleTable, type_table = TypeTable,
-           error_table = ErrorTable}.
 
 expand(Module, Type, Arity) ->
-    RecTable = ets:new(rec_table, [protected]),
-    ModuleTable = ets:new(module_table, [protected]),
-    TypeTable = ets:new(type_table, [protected, bag]),
-    ErrorTable = ets:new(error_table, [protected, bag]),
-    Cache = cache(RecTable, ModuleTable, TypeTable, ErrorTable),
-    case expand(Module, Type, Arity, Cache) of
-        {ok, ExpandedForm} ->
-            case ets:tab2list(error_table) of
-                [] ->
-                    {ok, ExpandedForm};
-                Errors -> 
-                    {error, Errors}
-            end;
-        {error, Reason} ->
-            {error, Reason}
-    end.
+    Cache = cache(),
+    Expansion = 
+        case expand(Module, Type, Arity, Cache) of
+            {ok, ExpandedForm} ->
+                case ets:tab2list(error_table) of
+                    [] ->
+                        {ok, ExpandedForm};
+                    Errors -> 
+                        {error, Errors}
+                end;
+            {error, Reason} ->
+                {error, Reason}
+        end,
+    finalize_cache(Cache),
+    Expansion.
 
 expand(Module, Type, Arity, Cache) ->
     case preload_types(Module, Type, Arity, Cache) of
@@ -122,6 +119,27 @@ preload_node_types(
 
 preload_node_types(Node, _Module, _Cache) ->
     Node.
+
+cache() ->
+    RecTable = ets:new(rec_table, [protected]),
+    ModuleTable = ets:new(module_table, [protected]),
+    TypeTable = ets:new(type_table, [protected, bag]),
+    ErrorTable = ets:new(error_table, [protected, bag]),
+    cache(RecTable, ModuleTable, TypeTable, ErrorTable).
+
+cache(RecTable, ModuleTable, TypeTable, ErrorTable) ->
+    #cache{rec_table = RecTable, module_table = ModuleTable, type_table = TypeTable,
+           error_table = ErrorTable}.
+
+finalize_cache(#cache{rec_table = RecTable, module_table = ModuleTable, type_table = TypeTable,
+                      error_table = ErrorTable}) ->
+    ets:delete(RecTable),
+    ets:delete(ModuleTable),
+    ets:delete(TypeTable),
+    ets:delete(ErrorTable).
+
+cache_errors(#cache{error_table = ErrorTable}) ->
+    ets:tab2list(ErrorTable).
 
 %%--------------------------------------------------------------------
 %% @doc
