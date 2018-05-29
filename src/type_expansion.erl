@@ -9,7 +9,7 @@
 -module(type_expansion).
 
 %% API
--export([core/1, exported_types/1, cache/4, type_to_clause/1, expand/3, expand/4, dialyzer_utils/0]).
+-export([core/1, exported_types/1, cache/4,  expand/3, expand/4, dialyzer_utils/0]).
 
 -record(cache, {rec_table, module_table, type_table, error_table}).
 
@@ -38,65 +38,6 @@ exported_types(Core) ->
 cache(RecTable, ModuleTable, TypeTable, ErrorTable) ->
     #cache{rec_table = RecTable, module_table = ModuleTable, type_table = TypeTable,
            error_table = ErrorTable}.
-
-type_to_clause({c, tuple, Tuples, _}) ->
-    TupleLists = 
-        lists:foldl(
-          fun(TupleValue, Accs) ->
-              Patterns = type_to_clause(TupleValue),
-                  case Accs of
-                      [] ->
-                          lists:map(
-                            fun(Pattern) ->
-                                    [Pattern]
-                            end, Patterns);
-                      Accs ->
-                          [[Pattern|AccValue] || 
-                              AccValue <- Accs,
-                              Pattern <- Patterns
-                          ]
-                  end
-          end, [], Tuples),
-    lists:map(
-      fun(TupleList) ->
-              {tuple, lists:reverse(TupleList)}
-      end, TupleLists);
-type_to_clause({c, function, _Function, _}) ->
-    [{guard, is_function}];
-type_to_clause({c, atom, Atoms, _}) ->
-    lists:map(fun(Atom) -> {atom, Atom} end, Atoms);
-type_to_clause({c, tuple_set, [{_N, Sets}], _}) ->
-    lists:foldl(fun(Item, Acc) -> type_to_clause(Item) ++ Acc end, [],Sets);
-type_to_clause({c, union, Unions, _}) ->
-    lists:foldl(fun(Item, Acc) -> type_to_clause(Item) ++ Acc end, [],Unions);
-type_to_clause({c, list, _, _}) ->
-    [{guard, is_list}];
-type_to_clause({c, map, [], _}) ->
-    [{guard, is_map}];
-type_to_clause({c, map, {Maps, _, _}, _}) ->
-    MapLists = 
-        lists:map(
-          fun({Key, mandatory, Value}, Acc) ->
-                  KeyClause = type_to_clause(Key),
-                  ValueClause = type_to_clause(Value),
-                  case ValueClause of
-                      any ->
-                          Acc;
-                      _ ->
-                          [{KeyClause, ValueClause}|Acc]
-                  end
-          end, Maps),
-    [map, MapLists];
-type_to_clause({c, binary, _, _}) ->
-    [{guard, is_binary}];
-type_to_clause({c, var, _, _}) ->
-    [any];
-type_to_clause(any) ->
-    [any];
-type_to_clause(none) ->
-    [];
-type_to_clause({c, _Type, _Body, _Qualifier}) ->
-    [].
 
 expand(Module, Type, Arity) ->
     RecTable = ets:new(rec_table, [protected]),
