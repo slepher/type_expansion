@@ -9,7 +9,7 @@
 -module(type_expansion).
 
 %% API
--export([core/1, exported_types/1, expand/3, expand/4, dialyzer_utils/0]).
+-export([core/1, exported_types/1, expand/3, expand/4, types_and_rec_map/1, dialyzer_utils/0]).
 -export([cache/0, finalize_cache/1, cache_errors/1]).
 
 -record(cache, {rec_table, module_table, type_table, error_table}).
