@@ -52,9 +52,9 @@ to_clauses({c, var, _, _}, Guards, NextVar) ->
     [{{var, 0}, Guards, NextVar}];
 to_clauses(any, Guards, NextVar) ->
     [{{var, 0}, Guards, NextVar}];
+to_clauses({c, opaque, _Body, _Qualifier}, Guards, NextVar) ->
+    [{{var, 0}, Guards, NextVar}];
 to_clauses(none, _Guards, _NextVar) ->
-    [];
-to_clauses({c, opaque, _Body, _Qualifier}, _Guards, _NextVar) ->
     [];
 to_clauses({c, _Type, _Body, _Qualifier}, _Guards, _NextVar) ->
     [].
