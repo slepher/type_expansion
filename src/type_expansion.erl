@@ -191,8 +191,14 @@ map_find_form(Type, Arity, RecMap) ->
     case maps:find({type, Type, Arity}, RecMap) of
         {ok, {{_Module, _Line, Form, _Args}, _}} ->
             {ok, Form};
-        _ ->
-            error
+        error ->
+            case maps:find({opaque, Type, Arity}, RecMap) of
+                {ok, _} ->
+                    Form = {type, 0, any, []},
+                    {ok, Form};
+                error ->
+                    error
+            end
     end.
 
 types_and_rec_map(Module) ->
