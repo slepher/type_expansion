@@ -154,20 +154,14 @@ load_module_data(Module, #cache{module_table = ModuleTable, type_table = TypeTab
     case ets:lookup(ModuleTable, Module) of
         [] ->
             ets:insert(ModuleTable, {Module, {ordsets:new(), <<>>}}),
-            PL = Module:module_info(compile),
-            case proplists:get_value(source, PL) of
-                undefined ->
-                    error;
-                File ->
+            case types_and_rec_map(Module) of
+                {ok, {Types, RecMap, File}} ->
                     ets:insert(ModuleTable, {Module, {ordsets:new(), File}}),
-                    case types_and_rec_map(Module) of
-                        {ok, {Types, RecMap}} ->
-                            ets:insert(TypeTable, {Module, Types}),
-                            ets:insert(RecTable, {Module, RecMap}),
-                            ok;
-                        error ->
-                            error
-                    end
+                    ets:insert(TypeTable, {Module, Types}),
+                    ets:insert(RecTable, {Module, RecMap}),
+                    ok;
+                error ->
+                    error
             end;
         _ ->
             ok
@@ -214,12 +208,18 @@ types_and_rec_map(Module) ->
     DialyzerUtils = dialyzer_utils(),
     case core(Module) of
         {ok, Core} ->
-            Types = exported_types(Core),
-            case DialyzerUtils:get_record_and_type_info(Core) of
-                {ok, RecMap} ->
-                    {ok, {Types, RecMap}};
-                _ ->
-                    error
+            PL = Module:module_info(compile),
+            case proplists:get_value(source, PL) of
+                undefined ->
+                    error;
+                File ->
+                    Types = exported_types(Core),
+                    case DialyzerUtils:get_record_and_type_info(Core) of
+                        {ok, RecMap} ->
+                            {ok, {Types, RecMap, list_to_binary(File)}};
+                        _ ->
+                            error
+                    end
             end;
         _ ->
             error
