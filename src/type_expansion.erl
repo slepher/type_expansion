@@ -62,29 +62,29 @@ expand(Module, Type, Arity, Cache) ->
             {error, Reason}
     end.
 
-preload_types_with_context(Module, Type, Arity, #cache{error_table = ErrorTable} = Cache, ContextModule, Line) ->
+preload_types_with_context(Module, Type, Arity, #cache{error_table = ErrorTable} = Cache, ContextModule, File, Line) ->
     case preload_types(Module, Type, Arity, Cache) of
         ok ->
             ok;
         {error, find_module_failed} ->
-            ets:insert(ErrorTable, {Module, ContextModule, Line}),
+            ets:insert(ErrorTable, {Module, ContextModule, File, Line}),
             ok;
         {error, find_type_failed} ->
-            ets:insert(ErrorTable, {{Module, Type, Arity}, ContextModule, Line}),
+            ets:insert(ErrorTable, {{Module, Type, Arity}, ContextModule, File, Line}),
             ok
     end.
 
 preload_types(Module, Type, Arity, #cache{rec_table = RecTable, module_table = ModuleTable} = Cache) ->
     case load_module_data(Module, Cache) of
         ok ->
-            TypesVisited = get_types_visited(Module, ModuleTable),
+            {TypesVisited, File} = get_types_visited(Module, ModuleTable),
             case ordsets:is_element({Type, Arity}, TypesVisited) of
                 false ->
                     NTypesVisited = ordsets:add_element({Type, Arity}, TypesVisited),
-                    ets:insert(ModuleTable, {Module, NTypesVisited}),
+                    ets:insert(ModuleTable, {Module, {NTypesVisited, File}}),
                     case rec_table_find_form(Module, Type, Arity, RecTable) of
                         {ok, Form} ->
-                            preload_form_types(Form, Module, Cache),
+                            preload_form_types(Form, Module, File, Cache),
                             ok;
                         error ->
                             {error, find_type_failed}
@@ -96,28 +96,28 @@ preload_types(Module, Type, Arity, #cache{rec_table = RecTable, module_table = M
             {error, find_module_failed}
     end.
 
-preload_form_types(Form, Module, Cache) ->
+preload_form_types(Form, Module, File, Cache) ->
     ast_traverse:map(
       fun(pre, Node) ->
-              preload_node_types(Node, Module, Cache);
+              preload_node_types(Node, Module, File, Cache);
          (_, Node) ->
               Node
       end, Form).
 
 preload_node_types(
   {remote_type, Line, [{atom, _, RemoteModule}, {atom, _, Type}, Args]} = Node,
-  Module, Cache) ->
+  Module, File, Cache) ->
     Arity = length(Args),
-    preload_types_with_context(RemoteModule, Type, Arity, Cache, Module, Line),
+    preload_types_with_context(RemoteModule, Type, Arity, Cache, Module, File, Line),
     Node;
 
 preload_node_types(
-  {user_type, Line, Type, Args} = Node, Module, Cache) ->
+  {user_type, Line, Type, Args} = Node, Module, File, Cache) ->
     Arity = length(Args),
-    preload_types_with_context(Module, Type, Arity, Cache, Module, Line),
+    preload_types_with_context(Module, Type, Arity, Cache, Module, File, Line),
     Node;
 
-preload_node_types(Node, _Module, _Cache) ->
+preload_node_types(Node, _Module, _File, _Cache) ->
     Node.
 
 cache() ->
@@ -153,14 +153,21 @@ cache_errors(#cache{error_table = ErrorTable}) ->
 load_module_data(Module, #cache{module_table = ModuleTable, type_table = TypeTable, rec_table = RecTable}) ->
     case ets:lookup(ModuleTable, Module) of
         [] ->
-            ets:insert(ModuleTable, {Module, ordsets:new()}),
-            case types_and_rec_map(Module) of
-                {ok, {Types, RecMap}} ->
-                    ets:insert(TypeTable, {Module, Types}),
-                    ets:insert(RecTable, {Module, RecMap}),
-                    ok;
-                error ->
-                    error
+            ets:insert(ModuleTable, {Module, {ordsets:new(), <<>>}}),
+            PL = Module:module_info(compile),
+            case proplists:get_value(source, PL) of
+                undefined ->
+                    error;
+                File ->
+                    ets:insert(ModuleTable, {Module, {ordsets:new(), File}}),
+                    case types_and_rec_map(Module) of
+                        {ok, {Types, RecMap}} ->
+                            ets:insert(TypeTable, {Module, Types}),
+                            ets:insert(RecTable, {Module, RecMap}),
+                            ok;
+                        error ->
+                            error
+                    end
             end;
         _ ->
             ok

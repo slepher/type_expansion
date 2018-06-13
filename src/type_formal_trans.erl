@@ -21,12 +21,16 @@ to_clauses(Type) ->
           {Pattern, Guards}
       end, Clauses).
 
-to_clauses({c, tuple, Tuples, _}, Guards, NextVar) ->
+to_clauses({c, tuple, Tuples, _}, Guards, NextVar) when is_list(Tuples) ->
     map_pattern(fun(Pattern) -> {tuple, Pattern} end, mapfold(Tuples, Guards, NextVar, true));
+to_clauses({c, tuple, _, _}, Guards, NextVar) ->
+    [{{var, NextVar}, [{is_tuple, NextVar}|Guards], NextVar + 1}];
 to_clauses({c, function, _Function, _}, Guards, NextVar) ->
     [{{var, NextVar}, [{is_function, NextVar}|Guards], NextVar + 1}];
-to_clauses({c, atom, Atoms, _}, Guards, NextVar) ->
+to_clauses({c, atom, Atoms, _}, Guards, NextVar) when is_list(Atoms) ->
     lists:map(fun(Atom) -> {Atom, Guards, NextVar} end, Atoms);
+to_clauses({c, atom, any, _}, Guards, NextVar) ->
+    [{{var, NextVar}, [{is_atom, NextVar}|Guards], NextVar + 1}];
 to_clauses({c, tuple_set, [{_N, Sets}], _}, Guards, NextVar) ->
     lists:foldl(fun(Item, Acc) -> to_clauses(Item, Guards, NextVar) ++ Acc end, [], Sets);
 to_clauses({c, union, Unions, _}, Guards, NextVar) ->
@@ -40,6 +44,8 @@ to_clauses({c, map, {Maps, _, _}, _}, Guards, NextVar) ->
         Clauses ->
             map_pattern(fun(Pattern) -> {map, Pattern} end, Clauses)
     end;
+%to_clauses({_KeyType, mandatory, {c, atom, any, _}}, _Guards, _NextVar) ->
+%    [];
 to_clauses({_KeyType, mandatory, any}, _Guards, _NextVar) ->
     [];
 to_clauses({{c, atom, [Atom], _}, mandatory, ValueType}, Guards, NextVar) ->
