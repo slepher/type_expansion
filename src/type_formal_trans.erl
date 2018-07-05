@@ -52,6 +52,8 @@ to_clauses({{c, atom, [Atom], _}, mandatory, ValueType}, Guards, NextVar) ->
     map_pattern(fun(Pattern) -> {Atom, Pattern} end, to_clauses(ValueType, Guards, NextVar));
 to_clauses({_KeyType, mandatory, _ValueType}, _Guards, _NextVar) ->
     [];
+to_clauses({_KeyType, optional, _ValueType}, _Guards, _NextVar) ->
+    [];
 to_clauses({c, binary, _, _}, Guards, NextVar) ->
     [{{var, NextVar}, [{is_binary, NextVar}|Guards], NextVar + 1}];
 to_clauses({c, var, _, _}, Guards, NextVar) ->
