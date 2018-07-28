@@ -88,15 +88,16 @@ cartesian([H|T], Guards, NextVar, StrictMode) ->
         [] ->
             map_pattern(fun(Pattern) -> [Pattern] end, to_clauses(H, Guards, NextVar, StrictMode));
         TClauses ->
-            lists:map(
-              fun({TPatterns, NGuards, NNextVar}) ->
+            lists:flatten(
+              lists:map(
+                fun({TPatterns, NGuards, NNextVar}) ->
                       case to_clauses(H, NGuards, NNextVar, StrictMode) of
                           [] ->
                               [{TPatterns, NGuards, NNextVar}];
                           Clauses ->
                               map_pattern(fun(Pattern) -> [Pattern|TPatterns] end, Clauses)
                       end
-              end, TClauses)
+              end, TClauses))
     end;
 cartesian([], _Guards, _NextVar, _StrictMode) ->
     [].
